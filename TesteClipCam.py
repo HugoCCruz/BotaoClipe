@@ -3,76 +3,123 @@ import time
 import threading
 from collections import deque
 from datetime import datetime
-from flask import Flask, jsonify
+from azure.storage.blob import BlobServiceClient
+import os
+import serial
 
-# Configurações do vídeo
+# CONFIGURAÇÕES
+SERIAL_PORT = "COM3"       # Porta de conexão com o ESP32
+BAUD_RATE = 115200
+
+# Câmera
 FPS = 30
 BUFFER_SECONDS = 30
 MAX_FRAMES = FPS * BUFFER_SECONDS
 
-# Cria o buffer circular para armazenar os frames
-buffer = deque(maxlen=MAX_FRAMES)
+# Blob Storage
+CONNECTION_STRING = "BlobEndpoint=https://passabola.blob.core.windows.net/;QueueEndpoint=https://passabola.queue.core.windows.net/;FileEndpoint=https://passabola.file.core.windows.net/;TableEndpoint=https://passabola.table.core.windows.net/;SharedAccessSignature=sv=2024-11-04&ss=b&srt=sco&sp=rlctfx&se=2025-10-21T03:00:00Z&st=2025-10-21T02:34:57Z&spr=https&sig=FNMWrCR%2FUclps2f41AoyR69DLKfznPwClD2EZQgZxBA%3D"
+CONTAINER_NAME = "videos"
 
-# Inicializa a webcam
+# INICIALIZAÇÕES
+
+# Blob
+blob_service_client = BlobServiceClient.from_connection_string(CONNECTION_STRING)
+container_client = blob_service_client.get_container_client(CONTAINER_NAME)
+
+# Câmera e gravação contínua
+buffer = deque(maxlen=MAX_FRAMES)
 cap = cv2.VideoCapture(0)
 
-# Inicializa o servidor Flask
-app = Flask(__name__)
+# Conecta à serial pro ESP32
+ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+print(f"Conectado à {SERIAL_PORT}")
 
-# Função que captura os frames da webcam em uma thread separada
-def capture_frames():
-    """Captura frames da webcam e os armazena no buffer."""
+# Flag de controle
+gravar_clipe = False
+
+
+# FUNÇÕES PRINCIPAIS
+def capturar_frames():
+    # Captura continuamente os frames da webcam e guarda no buffer
     while True:
         ret, frame = cap.read()
         if not ret:
-            break
+            continue
         buffer.append(frame)
+        time.sleep(1 / FPS)
 
-# Função que salva o clipe de vídeo localmente
-def save_clip():
-    """Salva o clipe de vídeo do buffer e retorna o status."""
-    
-    # Verifica se há frames suficientes no buffer
-    if len(buffer) == 0:
-        return {"status": "error", "message": "Sem frames suficientes no buffer"}
 
-    # Cria uma cópia segura do buffer para evitar conflitos
-    frames = list(buffer)
-    
-    try:
-        height, width, _ = frames[0].shape
-        
-        # Cria um nome de arquivo único com a data e hora
-        now = datetime.now()
-        filename = now.strftime("clip_%Y-%m-%d_%H-%M-%S.mp4")
+def salvar_e_enviar_video():
+    # Salva os frames do buffer em um arquivo e envia pro Azure Blob
+    global gravar_clipe
 
-        # Cria e salva o arquivo de vídeo
-        out = cv2.VideoWriter(filename, cv2.VideoWriter_fourcc(*'mp4v'), FPS, (width, height))
-        for frame in frames:
-            out.write(frame)
-        out.release()
-        
-        print(f"✅ Clipe salvo como {filename}")
-        return {"status": "success", "message": f"Clipe salvo como {filename}"}
+    while True:
+        if gravar_clipe:
+            gravar_clipe = False
 
-    except Exception as e:
-        print(f"❌ Erro ao salvar o clipe: {e}")
-        return {"status": "error", "message": f"Erro ao salvar o clipe: {e}"}
+            if len(buffer) == 0:
+                print("Nenhum frame no buffer, pulando...")
+                continue
 
-# Rota da API que o ESP32 irá chamar
-@app.route("/save", methods=['GET'])
-def save_and_respond():
-    """Recebe a requisição do ESP32, salva o clipe e retorna um JSON."""
-    result = save_clip()
-    return jsonify(result)
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            filename = f"clip_{timestamp}.mp4"
+            filepath = os.path.join(".", filename)
 
-# Bloco principal para iniciar o programa
+            height, width, _ = buffer[0].shape
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+            out = cv2.VideoWriter(filepath, fourcc, FPS, (width, height))
+
+            for frame in list(buffer):
+                out.write(frame)
+            out.release()
+
+            print(f"🎬 Vídeo salvo localmente: {filename}")
+
+            # Envia pro Azure Blob
+            try:
+                with open(filepath, "rb") as data:
+                    container_client.upload_blob(name=filename, data=data, overwrite=True)
+
+                blob_url = f"https://{blob_service_client.account_name}.blob.core.windows.net/{CONTAINER_NAME}/{filename}"
+                print(f"☁️  Upload concluído!\n🔗 URL: {blob_url}")
+
+            except Exception as e:
+                print(f"❌ Erro ao enviar pro Blob: {e}")
+
+            os.remove(filepath)
+
+
+def escutar_serial():
+    # Escuta a serial e aciona a gravação quando o ESP32 envia sinal
+    global gravar_clipe
+
+    while True:
+        if ser.in_waiting > 0:
+            linha = ser.readline().decode().strip()
+            if linha:
+                print(f"[Serial] Recebido: {linha}")
+
+                if linha.upper() in ["BOTAO", "TRIGGER", "1"]:
+                    print("🎯 Sinal do ESP32 recebido, salvando clipe...")
+                    gravar_clipe = True
+
+
+# EXECUÇÃO
 if __name__ == "__main__":
-    # Inicia a thread de captura de frames em segundo plano
-    t = threading.Thread(target=capture_frames, daemon=True)
-    t.start()
-    
-    # Inicia o servidor Flask, ouvindo todas as interfaces de rede na porta 5000
-    print("Servidor rodando e pronto para receber requisições do ESP32.")
-    print("Pressione CTRL+C para sair.")
-    app.run(host="0.0.0.0", port=5000)
+    t1 = threading.Thread(target=capturar_frames, daemon=True)
+    t2 = threading.Thread(target=salvar_e_enviar_video, daemon=True)
+    t3 = threading.Thread(target=escutar_serial, daemon=True)
+
+    t1.start()
+    t2.start()
+    t3.start()
+
+    print("📹 Sistema iniciado. Aguardando sinal do ESP32 via serial...")
+
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        cap.release()
+        ser.close()
+        print("Encerrado com segurança.")
