@@ -5,7 +5,6 @@ from collections import deque
 from datetime import datetime
 from azure.storage.blob import BlobServiceClient
 import os
-import serial
 
 # CONFIGURAÇÕES
 FPS = 30
@@ -13,6 +12,7 @@ BUFFER_SECONDS = 30
 MAX_FRAMES = FPS * BUFFER_SECONDS
 
 # Blob Storage
+from azure.storage.blob import BlobServiceClient
 
 ACCOUNT_URL = "https://passabola.blob.core.windows.net"
 SAS_TOKEN = "sp=racwdl&st=2025-11-04T02:19:01Z&se=2025-11-11T02:59:00Z&sv=2024-11-04&sr=c&sig=imZh4MPAGROOoGp2VukPsRzdIhcIHR9Ak%2Bpl33uQ87s%3D"
@@ -21,9 +21,6 @@ blob_service_client = BlobServiceClient(account_url=ACCOUNT_URL, credential=SAS_
 container_client = blob_service_client.get_container_client("videos")
 containerName = "videos"
 
-# Conexão ESP32
-SERIAL_PORT = "COM5"       #Porta padrão 5
-BAUD_RATE = 115200
 
 # Câmera e buffer circular
 buffer = deque(maxlen=MAX_FRAMES)
@@ -79,48 +76,43 @@ def salvar_e_enviar_video():
                 print(f"Upload concluído!\nURL: {blob_url}")
 
             except Exception as e:
-                print(f"!!!Erro ao enviar pro Blob: {e} !!!")
+                print(f"Erro ao enviar pro Blob: {e}")
 
             os.remove(filepath)
 
         time.sleep(0.1)
 
 
-def escutarSerial():
+def escutar_console():
+    """Aguarda o usuário apertar Enter para gravar clipe ou digitar 'sair' para encerrar."""
     global gravar_clipe
 
+    print("Sistema iniciado.")
+    print("Pressione [Enter] para salvar um clipe de 30s ou digite 'sair' para encerrar.\n")
 
     while True:
-        if ser.in_waiting > 0:
-            linha = ser.readline().decode().strip()
-            if linha:
-                print(f"[Serial] Recebido: {linha}")
+        comando = input("> ").strip().lower()
 
-                if linha.upper() in ["BOTAO", "TRIGGER", "1", "ON"]:
-                    print("Sinal do ESP32 recebido, salvando clipe...")
-                    gravar_clipe = True
+        if comando == "":
+            print("Comando recebido: gravando clipe...")
+            gravar_clipe = True
+        elif comando == "sair":
+            print("Encerrando sistema...")
+            break
+        else:
+            print("Comando não reconhecido. Use [Enter] para gravar ou 'sair' para encerrar.")
 
 
 # EXECUÇÃO
 if __name__ == "__main__":
     t1 = threading.Thread(target=capturar_frames, daemon=True)
     t2 = threading.Thread(target=salvar_e_enviar_video, daemon=True)
-    t3 = threading.Thread(target=escutar_serial, daemon=True)
-
 
     t1.start()
     t2.start()
-    t3.start()
 
-    print("Sistema iniciado. Aguardando sinal do ESP32 via serial...")
-
-
-    try:        
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-            print("Ocorreu um erro, encerrando...")
+    try:
+        escutar_console()
     finally:
         cap.release()
-        ser.close()
         print("Encerrado com segurança.")
