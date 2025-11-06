@@ -10,7 +10,7 @@ import serial
 
 # CONFIGURAÇÕES
 FPS = 30
-BUFFER_SECONDS = 30
+BUFFER_SECONDS = 15
 MAX_FRAMES = FPS * BUFFER_SECONDS
 
 # Blob Storage
@@ -23,8 +23,12 @@ container_client = blob_service_client.get_container_client("videos")
 containerName = "videos"
 
 # Conexão ESP32
-SERIAL_PORT = "COM5"       #Porta padrão 5
+SERIAL_PORT = "COM3"       #Porta padrão 5
 BAUD_RATE = 115200
+timeout = 1
+
+ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=timeout)
+time.sleep(2)  # Aguarda estabilização da conexão
 
 # Câmera e buffer circular
 buffer = deque(maxlen=MAX_FRAMES)
@@ -114,7 +118,7 @@ def escutarSerial():
 if __name__ == "__main__":
     t1 = threading.Thread(target=capturar_frames, daemon=True)
     t2 = threading.Thread(target=salvar_e_enviar_video, daemon=True)
-    t3 = threading.Thread(target=escutar_serial, daemon=True)
+    t3 = threading.Thread(target=escutarSerial, daemon=True)
 
 
     t1.start()
