@@ -4,6 +4,7 @@ import threading
 from collections import deque
 from datetime import datetime
 from azure.storage.blob import BlobServiceClient
+from azure.storage.blob import ContentSettings
 import os
 import serial
 
@@ -61,7 +62,7 @@ def salvar_e_enviar_video():
             filepath = os.path.join(".", filename)
 
             height, width, _ = buffer[0].shape
-            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+            fourcc = cv2.VideoWriter_fourcc(*"X264")
             out = cv2.VideoWriter(filepath, fourcc, FPS, (width, height))
 
             for frame in list(buffer):
@@ -73,7 +74,15 @@ def salvar_e_enviar_video():
             # Envia pro Azure Blob
             try:
                 with open(filepath, "rb") as data:
-                    container_client.upload_blob(name=filename, data=data, overwrite=True)
+                    container_client.upload_blob(
+                        name=filename,
+                        data=data,
+                        overwrite=True,
+                        content_settings=ContentSettings(
+                            content_type="video/mp4",
+                            content_disposition="inline"
+                        )
+                )   
 
                 blob_url = f"https://{blob_service_client.account_name}.blob.core.windows.net/{containerName}/{filename}"
                 print(f"Upload concluído!\nURL: {blob_url}")
