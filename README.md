@@ -113,7 +113,8 @@ Os vídeos enviados para o Azure Blob Storage podem ser consumidos diretamente p
 
 ### Arduino (serial.c)
 
-Arduino.h
+- Arduino.h
+
 ## Integrantes 
 |  Nome dos Integrantes       |       RM    | 
 |-----------------------------|-------------|
