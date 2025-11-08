@@ -1,3 +1,9 @@
+# Enzo Rodrigues Dourado - 565585
+# Hugo Copatti - 561968
+# Lucas Villani - 562200
+# Matheus Victorio dos Santos -566447
+# Vinícius Ferreira Lugli - 564694
+
 import cv2
 import time
 import threading

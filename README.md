@@ -94,14 +94,14 @@ Os vídeos enviados para o Azure Blob Storage podem ser consumidos diretamente p
 ## :electric_plug: Diagrama de Conexão
 | Componente      |       Conexão     | Pino Arduino      | 
 |-----------------|-------------------|-------------------|
-| Botão           | ESP329Entrada)    | 32                |
-| Botão(GND)      | ESP32(GND         | GND               |
+| Botão           | ESP32(Entrada)    | 32                |
+| Botão(GND)      | ESP32(GND)        | GND               |
 | ESP32           | PC (Host)         | COM3              |
 | Webcam          | PC (host)         | USB               |
 
 ## 📚 Bibliotecas
 
-- Python (main.py)
+### Python (main.py)
 - cv2 (opencv-python)
 - time
 - threading
@@ -111,6 +111,14 @@ Os vídeos enviados para o Azure Blob Storage podem ser consumidos diretamente p
 - os
 - serial (pyserial)
 
-Arduino (serial.c)
+### Arduino (serial.c)
 
 Arduino.h
+## Integrantes 
+|  Nome dos Integrantes       |       RM    | 
+|-----------------------------|-------------|
+| Enzo Rodrigues Dourado      | 565585      |
+| Hugo Copatti                | 561968      |
+| Lucas Camillo Villani       | 562200      |
+| Matheus Victorio dos Santos | 566447      |
+| Vinícius Ferreira Lugli     | 564694      |
