@@ -15,8 +15,8 @@ MAX_FRAMES = FPS * BUFFER_SECONDS
 # Blob Storage
 from azure.storage.blob import BlobServiceClient
 
-ACCOUNT_URL = "https://passabola.blob.core.windows.net"
-SAS_TOKEN = "sp=racwdl&st=2025-11-04T02:19:01Z&se=2025-11-11T02:59:00Z&sv=2024-11-04&sr=c&sig=imZh4MPAGROOoGp2VukPsRzdIhcIHR9Ak%2Bpl33uQ87s%3D"
+ACCOUNT_URL = "https://stdev2495531.blob.core.windows.net/videos?"
+SAS_TOKEN = f"sp=racwdl&st=2025-11-07T19:09:00Z&se=2025-11-10T03:24:00Z&sv=2024-11-04&sr=c&sig=Qf750meyC%2BLa7MS4ljgIX%2FogJzdjinZ9HKf0PDH%2Fpn0%3D"
 
 blob_service_client = BlobServiceClient(account_url=ACCOUNT_URL, credential=SAS_TOKEN)
 container_client = blob_service_client.get_container_client("videos")
